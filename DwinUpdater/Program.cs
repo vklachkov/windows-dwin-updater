@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Security.Authentication.ExtendedProtection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
@@ -16,29 +17,33 @@ namespace DwinUpdater
 
         private static SerialPort _port;
 
+        private static StreamWriter file;
+
         public static void Main(string[] args)
         {
             var outBuffer = new byte[64];
 
             OpenSerial();
 
+            file = new StreamWriter("Log.txt") { AutoFlush = true };
+
             ResetScreen();
             ReadOk(ref outBuffer);
 
-            foreach (var file in GetFiles())
+            foreach (var f in GetFiles())
             {
-                Console.WriteLine($"Upload file {file.Value}");
+                file.WriteLine($"Upload file {f.Value}");
 
-                var fileContent = File.ReadAllBytes(file.Value);
+                var fileContent = File.ReadAllBytes(f.Value);
                 var subspacesCount = Math.Ceiling(fileContent.Length / (256.0 * 1024.0));
                 var segmentsCount = subspacesCount * 8;
-                var baseSegment = file.Key * 8;
+                var baseSegment = f.Key * 8;
 
                 for (var s = baseSegment; s < baseSegment + segmentsCount; s++)
                 {
                     var fileEnd = false;
 
-                    Console.Write($"Segment {s}/{baseSegment + segmentsCount - 1}        \r");
+                    file.WriteLine("---------------------------------------------------------");
 
                     const int step = 240;
                     for (var i = 0; i < (32 * 1024); i += step)
@@ -56,15 +61,17 @@ namespace DwinUpdater
 
                         WriteToRam(i / 2, part);
                         ReadOk(ref outBuffer);
-                        
+
                         if (available < step)
                         {
                             fileEnd = true;
                             break;
                         }
+
+                        Thread.Sleep(30);
                     }
 
-                    WriteFromRamToFlash(file.Key, s);
+                    WriteFromRamToFlash(f.Key, s);
                     ReadOk(ref outBuffer);
 
                     if (fileEnd) break;
@@ -73,8 +80,6 @@ namespace DwinUpdater
 
             ResetScreen();
             ReadOk(ref outBuffer);
-
-            Console.WriteLine("Done                          ");
         }
 
         private static void OpenSerial()
@@ -103,7 +108,7 @@ namespace DwinUpdater
             buffer[5] = (byte) ((address & 0x00FF) >> 0);
             bytes.CopyTo(buffer, 6);
 
-            //Console.WriteLine("WriteToRam 0x{0:X}", bytes.Length + 0x02 + 0x01);
+            WriteBufferToLog("Write to ram", buffer);
             _port.Write(buffer, 0, buffer.Length);
         }
 
@@ -136,13 +141,13 @@ namespace DwinUpdater
                 0x80, 0x00,
 
                 /* ??? */
-                0x00, 0x14,
+                0x03, 0xE8,
 
                 /* Always zeros */
                 0x00, 0x00, 0x00, 0x00
             };
 
-            //Console.WriteLine("WriteFromRamToFlash 0x{0:X}", segment);
+            WriteBufferToLog("Write to flash", buffer);
             _port.Write(buffer, 0, buffer.Length);
         }
 
@@ -160,6 +165,7 @@ namespace DwinUpdater
             {
                 var extension = Path.GetExtension(file);
                 if (
+                    extension != ".HZK" &&
                     extension != ".bin" &&
                     extension != ".icl"
                 ) continue;
@@ -171,6 +177,15 @@ namespace DwinUpdater
             }
 
             return files;
+        }
+
+        private static void WriteBufferToLog(string title, byte[] buffer)
+        {
+            var hex = new StringBuilder(buffer.Length * 2);
+            foreach (var b in buffer) hex.AppendFormat("{0:X2} ", b);
+
+            file.WriteLine(title);
+            file.WriteLine(hex);
         }
     }
 }
