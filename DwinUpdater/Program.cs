@@ -15,41 +15,29 @@ namespace DwinUpdater
     {
         private static List<List<byte>> _segments;
 
-        private static FileStream _binaryOutputStream;
-
         private static SerialPort _port;
 
         public static void Main(string[] args)
         {
-            Console.WriteLine("Dwin Updater!");
-
-            Console.WriteLine("Initialize file stream");
-            String timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-            _binaryOutputStream = new FileStream($"Dump-{timestamp}.bin", FileMode.Create, FileAccess.Write);
+            Console.WriteLine("DWIN UPDATER");
 
             Console.Write("Reading file to chunks. ");
             _segments = LoadSegments();
             Console.WriteLine("OK");
 
             Console.Write("Opening second serial port. ");
-            //_port = CreateSerialPort();
+            _port = CreateSerialPort();
             Console.WriteLine("OK");
 
             // Reset screen
             Console.Write("Reset screen. ");
-            //ResetDwin();
+            ResetDwin();
             ReadOk();
             Console.WriteLine("OK");
 
             // Wait screen
             Console.Write("Await display on. ");
-            //Thread.Sleep(2000);
-
-            // Show main screen (only for test)
-            Console.Write("Go to main screen. ");
-            GoToMainScreen();
-            ReadOk();
-            Console.WriteLine("OK");
+            Thread.Sleep(2000);
 
             // Start update
             Console.WriteLine("Starting update...");
@@ -97,14 +85,7 @@ namespace DwinUpdater
             Console.WriteLine("OK");
 
             // Wait screen
-            Console.Write("Await display update... ");
-            //Thread.Sleep(15000);
-
-            // Show main screen (only for test)
-            Console.Write("Go to main screen. ");
-            GoToMainScreen();
-            ReadOk();
-            Console.WriteLine("OK");
+            Console.Write("End... ");
         }
 
         private static List<List<byte>> LoadSegments()
@@ -135,7 +116,6 @@ namespace DwinUpdater
             return chunks;
         }
 
-#if false
         private static SerialPort CreateSerialPort()
         {
             var ports = SerialPort.GetPortNames();
@@ -146,23 +126,15 @@ namespace DwinUpdater
                 Parity = Parity.None,
             };
         }
-#endif
 
         private static void ResetDwin()
         {
             var reset = new byte[] { 0x5A, 0xA5, 0x07, 0x82, 0x00, 0x04, 0x55, 0xAA, 0x5A, 0xA5 };
-            _binaryOutputStream.Write(reset, 0, reset.Length);
-        }
-
-        private static void GoToMainScreen()
-        {
-            var screen = new byte[] { 0x5A, 0xA5, 0x07, 0x82, 0x00, 0x84, 0x5A, 0x01, 0x00, 0x02 };
-            //_port.Write(screen, 0, screen.Length);
+            _port.Write(reset, 0, reset.Length);
         }
 
         private static void ReadOk()
         {
-            return;
             while (true)
             {
                 int available = _port.BytesToRead;
@@ -195,8 +167,8 @@ namespace DwinUpdater
             buffer[4] = (byte)((address & 0xFF00) >> 8);
             buffer[5] = (byte)((address & 0x00FF) >> 0);
 
-            _binaryOutputStream.Write(buffer, 0, buffer.Length);
-            _binaryOutputStream.Write(segment.ToArray(), chunk_offset, chunk_size);
+            _port.Write(buffer, 0, buffer.Length);
+            _port.Write(segment.ToArray(), chunk_offset, chunk_size);
         }
 
         private static void WriteFromRamToFlash(int segment)
@@ -231,14 +203,7 @@ namespace DwinUpdater
                 0x00, 0x00, 0x00, 0x00
             };
 
-            _binaryOutputStream.Write(buffer, 0, buffer.Length);
-
-            var checkStatusBuffer = new byte[]
-            {
-                 0x5A, 0xA5, 0x04, 0x83, 0x00, 0xAA, 0x01
-            };
-
-            _binaryOutputStream.Write(checkStatusBuffer, 0, checkStatusBuffer.Length);
+            _port.Write(buffer, 0, buffer.Length);
 
             // FIXME: Check status
         }

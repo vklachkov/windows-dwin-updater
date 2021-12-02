@@ -5,6 +5,10 @@ VisualStudioVersion = 17.1.31911.260
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DwinUpdater", "DwinUpdater\DwinUpdater.csproj", "{C7696456-501D-4990-A5F9-C01E2E5B3237}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DwinDumpGrabber", "DwinDumpGrabber\DwinDumpGrabber.csproj", "{52033001-6744-4BDA-82F0-E07C5A3F2194}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DwinDumpUploader", "DwinDumpUploader\DwinDumpUploader.csproj", "{46C712BD-6569-4449-A26C-0628D5EB18DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{C7696456-501D-4990-A5F9-C01E2E5B3237}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7696456-501D-4990-A5F9-C01E2E5B3237}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7696456-501D-4990-A5F9-C01E2E5B3237}.Release|Any CPU.Build.0 = Release|Any CPU
+		{52033001-6744-4BDA-82F0-E07C5A3F2194}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{52033001-6744-4BDA-82F0-E07C5A3F2194}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{52033001-6744-4BDA-82F0-E07C5A3F2194}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{52033001-6744-4BDA-82F0-E07C5A3F2194}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46C712BD-6569-4449-A26C-0628D5EB18DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46C712BD-6569-4449-A26C-0628D5EB18DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46C712BD-6569-4449-A26C-0628D5EB18DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46C712BD-6569-4449-A26C-0628D5EB18DF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
