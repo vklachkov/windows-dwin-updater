@@ -13,7 +13,7 @@ namespace DwinUpdater
 {
     internal static class Program
     {
-        private static List<List<byte>> _segments;
+        private static Dictionary<int, List<List<byte>>> _filesSegments;
 
         private static SerialPort _port;
 
@@ -22,98 +22,113 @@ namespace DwinUpdater
             Console.WriteLine("DWIN UPDATER");
 
             Console.Write("Reading file to chunks. ");
-            _segments = LoadSegments();
+            _filesSegments = LoadFilesSegments();
             Console.WriteLine("OK");
 
             Console.Write("Opening second serial port. ");
             _port = CreateSerialPort();
+            _port.Open();
             Console.WriteLine("OK");
 
-            // Reset screen
             Console.Write("Reset screen. ");
             ResetDwin();
             ReadOk();
             Console.WriteLine("OK");
 
-            // Wait screen
             Console.Write("Await display on. ");
             Thread.Sleep(2000);
 
-            // Start update
             Console.WriteLine("Starting update...");
 
-            // Iterate all
-            var baseSegment = 32 * 8;
-            for (int i = 0; i < _segments.Count; i++)
+            foreach (var f in _filesSegments)
             {
-                var realIndex = baseSegment + (_segments.Count - i - 1);
-                var segment = _segments[i];
-                var bytesTotal = segment.Count;
-                var bytesLeft = segment.Count;
-                var step = (byte)240;
-
-                Console.WriteLine($"Update segment {realIndex:X3}");
-
-                // Load every segment by 240 bytes chunks
-                while (true)
+                var baseSegment = f.Key * 8;
+                for (int i = 0; i < _filesSegments.Count; i++)
                 {
-                    int chunkOffset = bytesTotal - bytesLeft;
-                    byte chunkSize = bytesLeft >= step ? step : (byte)bytesLeft;
+                    var realIndex = baseSegment + (f.Value.Count - i - 1);
+                    var segment = f.Value[i];
+                    var bytesTotal = segment.Count;
+                    var bytesLeft = segment.Count;
+                    var step = (byte)240;
 
-                    Console.Write(">");
+                    Console.WriteLine($"Update segment {realIndex}");
 
-                    WriteToRam(chunkOffset, chunkSize, ref segment);
-                    ReadOk();
+                    // Load every segment by 240 bytes chunks
+                    while (true)
+                    {
+                        int chunkOffset = bytesTotal - bytesLeft;
+                        byte chunkSize = bytesLeft >= step ? step : (byte)bytesLeft;
 
-                    Console.Write("<");
+                        Console.Write(">");
 
-                    bytesLeft -= chunkSize;
-                    if (bytesLeft <= 0) break;
+                        WriteToRam(chunkOffset, chunkSize, segment);
+                        ReadOk();
+
+                        Console.Write("<");
+
+                        bytesLeft -= chunkSize;
+                        if (bytesLeft <= 0) break;
+                    }
+
+                    Console.WriteLine();
+
+                    Console.Write("Write to flash... ");
+                    WriteFromRamToFlash(realIndex);
+                    Console.WriteLine("OK");
                 }
-
-                Console.WriteLine();
-
-                Console.Write("Write to flash... ");
-                WriteFromRamToFlash(realIndex);
-                Console.WriteLine("OK");
             }
 
-            // Reset screen
             Console.Write("Reset screen. ");
             ResetDwin();
             ReadOk();
             Console.WriteLine("OK");
 
-            // Wait screen
-            Console.Write("End... ");
+            Thread.Sleep(15000);
+
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
         }
 
-        private static List<List<byte>> LoadSegments()
+        private static Dictionary<int, List<List<byte>>> LoadFilesSegments()
         {
-            var chunks = new List<List<byte>>();
-            var content = File.ReadAllBytes("DWIN_SET\\32.icl");
-            var contentTotal = content.Length;
-            var contentLeft = content.Length;
+            var filesSegments = new Dictionary<int, List<List<byte>>>();
 
-            var _32kb = 32 * 1024;
-            for (var i = 0; contentLeft > 0; i++)
+            foreach (var file in Directory.EnumerateFiles("DWIN_SET"))
             {
-                var chunkSize = contentLeft >= _32kb ? _32kb : contentLeft;
-                var chunk = new byte[chunkSize];
-                Buffer.BlockCopy(
-                    content,
-                    contentTotal - contentLeft,
-                    chunk,
-                    0,
-                    chunkSize
-                );
-                chunks.Add(new List<byte>(chunk));
-                contentLeft -= chunkSize;
+                var extension = Path.GetExtension(file);
+                if (
+                    extension != ".HZK" &&
+                    extension != ".bin" &&
+                    extension != ".icl"
+                ) continue;
+
+                var fileIndex = int.Parse(Regex.Match(file, @"\d+").Value);
+
+                var content = File.ReadAllBytes("DWIN_SET\\32.icl");
+                var fileTotal = content.Length;
+                var fileLeft = content.Length;
+                var segmentMaxSize = 32 * 1024;
+                var segments = new List<List<byte>>();
+                for (var i = 0; fileLeft > 0; i++)
+                {
+                    var chunkSize = fileLeft >= segmentMaxSize ? segmentMaxSize : fileLeft;
+                    var segment = new byte[chunkSize];
+                    Buffer.BlockCopy(
+                        content,
+                        fileTotal - fileLeft,
+                        segment,
+                        0,
+                        chunkSize
+                    );
+                    segments.Add(new List<byte>(segment));
+                    fileLeft -= chunkSize;
+                }
+                segments.Reverse();
+
+                filesSegments.Add(fileIndex, segments);
             }
 
-            chunks.Reverse();
-
-            return chunks;
+            return filesSegments;
         }
 
         private static SerialPort CreateSerialPort()
@@ -155,7 +170,7 @@ namespace DwinUpdater
             }
         }
 
-        private static void WriteToRam(int chunk_offset, byte chunk_size, ref List<byte> segment)
+        private static void WriteToRam(int chunk_offset, byte chunk_size, List<byte> segment)
         {
             var address = 0x8000 + (chunk_offset / 2);
 
