@@ -26,7 +26,7 @@ Each file has its own index. It is acceptable, if the file is large, to occupy s
 
 ### General algorithm
 
-The UART software update goes through several stages cyclically. First you need to upload a part of the file, with a maximum size of 32 kb. Then send a command to write data from RAM to a USB flash drive. And repeat again if the file is larger than 32kb. At the end, send a reset command
+The UART software update goes through several stages cyclically. First you need to upload a part of the file, with a maximum size of 32 kb. Then send a command to write data from RAM to a spi flash. And repeat again if the file is larger than 32kb. At the end, send a reset command
 
 ### Practical implementation
 
@@ -135,7 +135,7 @@ One Chinese programmer wrote an alternative solution:
 
 http://forum.dwin.com.cn/forum.php?mod=viewthread&tid=4084&extra=page%3D1
 
-The disadvantage of such a solution is the absence of the source code of the program for windows, as well as the binary, which must be pre-filled via a USB flash drive
+The disadvantage of such a solution is the absence of the source code of the program for windows, as well as the binary, which must be flashed using sd card
 
 ### OS Update
 
