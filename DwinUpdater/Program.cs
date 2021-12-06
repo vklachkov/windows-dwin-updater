@@ -13,122 +13,97 @@ namespace DwinUpdater
 {
     internal static class Program
     {
-        private static Dictionary<int, List<List<byte>>> _filesSegments;
-
         private static SerialPort _port;
+
+        private static byte[] _fileContent;
+
+        private static FileStream _binaryOutputStream;
 
         public static void Main(string[] args)
         {
             Console.WriteLine("DWIN UPDATER");
 
-            Console.Write("Reading file to chunks. ");
-            _filesSegments = LoadFilesSegments();
+            String timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            _binaryOutputStream = new FileStream($"Dump-{timestamp}.bin", FileMode.Create, FileAccess.Write);
+
+            Console.Write("Reading file content. ");
+            _fileContent = LoadFileContent();
             Console.WriteLine("OK");
 
             Console.Write("Opening second serial port. ");
-            _port = CreateSerialPort();
-            _port.Open();
+            //_port = CreateSerialPort();
+            //_port.Open();
             Console.WriteLine("OK");
 
             Console.Write("Reset screen. ");
-            ResetDwin();
-            ReadOk();
+            //ResetDwin();
+            //ReadOk();
             Console.WriteLine("OK");
 
+            //_port.Write(new byte[] { 0x5A, 0xA5, 0x07, 0x82, 0x00, 0x84, 0x5A, 0x01, 0x00, 0x02 }, 0, 10);
+            //ReadOk();
+
             Console.Write("Await display on. ");
-            Thread.Sleep(2000);
+            //Thread.Sleep(2000);
 
             Console.WriteLine("Starting update...");
 
-            foreach (var f in _filesSegments)
+            var segmentSize = 32 * 1024;
+            var chunkSize = (byte)240;
+
+            var segmentsCount = (int)Math.Ceiling((double)_fileContent.Length / segmentSize);
+            var previewSegmentSize = _fileContent.Length - (segmentsCount - 1) * (32 * 1024);
+
+            for (int s = (segmentsCount - 1); s >= 0; s--)
             {
-                var baseSegment = f.Key * 8;
-                for (int i = 0; i < _filesSegments.Count; i++)
+                var actualSegmentSize = (s == segmentsCount - 1) ? previewSegmentSize : segmentSize;
+                var actualSegmentOffset = s * segmentSize;
+
+                var chunksCount = (int)Math.Ceiling((double)actualSegmentSize / chunkSize);
+
+                var segmentBytesLeft = actualSegmentSize;
+
+                for (var c = 0; c < chunksCount; c++)
                 {
-                    var realIndex = baseSegment + (f.Value.Count - i - 1);
-                    var segment = f.Value[i];
-                    var bytesTotal = segment.Count;
-                    var bytesLeft = segment.Count;
-                    var step = (byte)240;
+                    int actualChunkOffset = actualSegmentSize - segmentBytesLeft;
+                    byte actualChunkSize = segmentBytesLeft >= chunkSize ? chunkSize : (byte)segmentBytesLeft;
 
-                    Console.WriteLine($"Update segment {realIndex}");
+                    byte[] chunk = new byte[actualChunkSize];
+                    Buffer.BlockCopy(
+                        _fileContent,
+                        actualSegmentOffset + actualChunkOffset,
+                        chunk,
+                        0,
+                        actualChunkSize
+                    );
 
-                    // Load every segment by 240 bytes chunks
-                    while (true)
-                    {
-                        int chunkOffset = bytesTotal - bytesLeft;
-                        byte chunkSize = bytesLeft >= step ? step : (byte)bytesLeft;
+                    WriteToRam(actualChunkOffset, ref chunk, actualChunkSize);
+                    //ReadOk();
 
-                        Console.Write(">");
-
-                        WriteToRam(chunkOffset, chunkSize, segment);
-                        ReadOk();
-
-                        Console.Write("<");
-
-                        bytesLeft -= chunkSize;
-                        if (bytesLeft <= 0) break;
-                    }
-
-                    Console.WriteLine();
-
-                    Console.Write("Write to flash... ");
-                    WriteFromRamToFlash(realIndex);
-                    Console.WriteLine("OK");
+                    segmentBytesLeft -= actualChunkSize;
                 }
+
+                WriteFromRamToFlash(32 * 8 + s);
+                //ReadOk();
             }
 
             Console.Write("Reset screen. ");
             ResetDwin();
-            ReadOk();
+            //ReadOk();
             Console.WriteLine("OK");
 
-            Thread.Sleep(15000);
+            //Thread.Sleep(15000);
+
+            //_port.Write(new byte[] { 0x5A, 0xA5, 0x07, 0x82, 0x00, 0x84, 0x5A, 0x01, 0x00, 0x02 }, 0, 10);
+            //ReadOk();
 
             Console.WriteLine("Press any key to continue...");
             Console.ReadKey();
         }
 
-        private static Dictionary<int, List<List<byte>>> LoadFilesSegments()
+        private static byte[] LoadFileContent()
         {
-            var filesSegments = new Dictionary<int, List<List<byte>>>();
-
-            foreach (var file in Directory.EnumerateFiles("DWIN_SET"))
-            {
-                var extension = Path.GetExtension(file);
-                if (
-                    extension != ".HZK" &&
-                    extension != ".bin" &&
-                    extension != ".icl"
-                ) continue;
-
-                var fileIndex = int.Parse(Regex.Match(file, @"\d+").Value);
-
-                var content = File.ReadAllBytes("DWIN_SET\\32.icl");
-                var fileTotal = content.Length;
-                var fileLeft = content.Length;
-                var segmentMaxSize = 32 * 1024;
-                var segments = new List<List<byte>>();
-                for (var i = 0; fileLeft > 0; i++)
-                {
-                    var chunkSize = fileLeft >= segmentMaxSize ? segmentMaxSize : fileLeft;
-                    var segment = new byte[chunkSize];
-                    Buffer.BlockCopy(
-                        content,
-                        fileTotal - fileLeft,
-                        segment,
-                        0,
-                        chunkSize
-                    );
-                    segments.Add(new List<byte>(segment));
-                    fileLeft -= chunkSize;
-                }
-                segments.Reverse();
-
-                filesSegments.Add(fileIndex, segments);
-            }
-
-            return filesSegments;
+            return File.ReadAllBytes("DWIN_SET\\32.icl");
         }
 
         private static SerialPort CreateSerialPort()
@@ -145,7 +120,8 @@ namespace DwinUpdater
         private static void ResetDwin()
         {
             var reset = new byte[] { 0x5A, 0xA5, 0x07, 0x82, 0x00, 0x04, 0x55, 0xAA, 0x5A, 0xA5 };
-            _port.Write(reset, 0, reset.Length);
+            //_port.Write(reset, 0, reset.Length);
+            _binaryOutputStream.Write(reset, 0, reset.Length);
         }
 
         private static void ReadOk()
@@ -170,7 +146,7 @@ namespace DwinUpdater
             }
         }
 
-        private static void WriteToRam(int chunk_offset, byte chunk_size, List<byte> segment)
+        private static void WriteToRam(int chunk_offset, ref byte[] chunk, byte chunk_size)
         {
             var address = 0x8000 + (chunk_offset / 2);
 
@@ -182,8 +158,11 @@ namespace DwinUpdater
             buffer[4] = (byte)((address & 0xFF00) >> 8);
             buffer[5] = (byte)((address & 0x00FF) >> 0);
 
-            _port.Write(buffer, 0, buffer.Length);
-            _port.Write(segment.ToArray(), chunk_offset, chunk_size);
+            //_port.Write(buffer, 0, buffer.Length);
+            //_port.Write(chunk, 0, chunk_size);
+
+            _binaryOutputStream.Write(buffer, 0, buffer.Length);
+            _binaryOutputStream.Write(chunk, 0, chunk_size);
         }
 
         private static void WriteFromRamToFlash(int segment)
@@ -218,7 +197,12 @@ namespace DwinUpdater
                 0x00, 0x00, 0x00, 0x00
             };
 
-            _port.Write(buffer, 0, buffer.Length);
+            //_port.Write(buffer, 0, buffer.Length);
+
+            _binaryOutputStream.Write(buffer, 0, buffer.Length);
+
+            byte[] checkStatus = new byte[] { 0x5A, 0xA5, 0x04, 0x83, 0x00, 0xAA, 0x01 };
+            _binaryOutputStream.Write(checkStatus, 0, checkStatus.Length);
 
             // FIXME: Check status
         }
